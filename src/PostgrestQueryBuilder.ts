@@ -1,34 +1,37 @@
 import PostgrestBuilder from './PostgrestBuilder'
 import PostgrestFilterBuilder from './PostgrestFilterBuilder'
 import { GetResult } from './select-query-parser'
-import { Fetch, GenericTable, GenericView } from './types'
+import { Fetch, GenericSchema, GenericTable, GenericView } from './types'
 
-export default class PostgrestQueryBuilder<Relation extends GenericTable | GenericView> {
-  url: URL
-  headers: Record<string, string>
-  schema?: string
-  signal?: AbortSignal
-  fetch?: Fetch
+export default class PostgrestQueryBuilder<
+  Schema extends GenericSchema,
+  Relation extends GenericTable | GenericView
+> {
+    url: URL
+    headers: Record<string, string>
+    schema?: string
+    signal?: AbortSignal
+    fetch?: Fetch
 
-  constructor(
-    url: URL,
-    {
-      headers = {},
-      schema,
-      fetch,
-    }: {
-      headers?: Record<string, string>
-      schema?: string
-      fetch?: Fetch
+    constructor(
+        url: URL,
+        {
+            headers = {},
+            schema,
+            fetch,
+        }: {
+            headers?: Record<string, string>
+            schema?: string
+            fetch?: Fetch
+        }
+    ) {
+        this.url = url
+        this.headers = headers
+        this.schema = schema
+        this.fetch = fetch
     }
-  ) {
-    this.url = url
-    this.headers = headers
-    this.schema = schema
-    this.fetch = fetch
-  }
 
-  /**
+    /**
    * Perform a SELECT query on the table or view.
    *
    * @param columns - The columns to retrieve, separated by commas
@@ -49,50 +52,50 @@ export default class PostgrestQueryBuilder<Relation extends GenericTable | Gener
    * `"estimated"`: Uses exact count for low numbers and planned count for high
    * numbers.
    */
-  select<
+    select<
     Query extends string = '*',
-    Result = GetResult<Relation['Row'], Query extends '*' ? '*' : Query>
-  >(
-    columns?: Query,
-    {
-      head = false,
-      count,
-    }: {
-      head?: boolean
-      count?: 'exact' | 'planned' | 'estimated'
-    } = {}
-  ): PostgrestFilterBuilder<Relation['Row'], Result> {
-    const method = head ? 'HEAD' : 'GET'
-    // Remove whitespaces except when quoted
-    let quoted = false
-    const cleanedColumns = (columns ?? '*')
-      .split('')
-      .map((c) => {
-        if (/\s/.test(c) && !quoted) {
-          return ''
+    Result = GetResult<Schema, Relation['Row'], Query>
+    >(
+        columns?: Query,
+        {
+            head = false,
+            count,
+        }: {
+            head?: boolean
+            count?: 'exact' | 'planned' | 'estimated'
+        } = {}
+    ): PostgrestFilterBuilder<Schema, Relation['Row'], Result> {
+        const method = head ? 'HEAD' : 'GET'
+        // Remove whitespaces except when quoted
+        let quoted = false
+        const cleanedColumns = (columns ?? '*')
+        .split('')
+        .map((c) => {
+            if (/\s/.test(c) && !quoted) {
+                return ''
+            }
+            if (c === '"') {
+                quoted = !quoted
+            }
+            return c
+        })
+        .join('')
+        this.url.searchParams.set('select', cleanedColumns)
+        if (count) {
+            this.headers['Prefer'] = `count=${count}`
         }
-        if (c === '"') {
-          quoted = !quoted
-        }
-        return c
-      })
-      .join('')
-    this.url.searchParams.set('select', cleanedColumns)
-    if (count) {
-      this.headers['Prefer'] = `count=${count}`
+
+        return new PostgrestFilterBuilder({
+            method,
+            url: this.url,
+            headers: this.headers,
+            schema: this.schema,
+            fetch: this.fetch,
+            allowEmpty: false,
+        } as unknown as PostgrestBuilder<Result>)
     }
 
-    return new PostgrestFilterBuilder({
-      method,
-      url: this.url,
-      headers: this.headers,
-      schema: this.schema,
-      fetch: this.fetch,
-      allowEmpty: false,
-    } as unknown as PostgrestBuilder<Result>)
-  }
-
-  /**
+    /**
    * Perform an INSERT into the table or view.
    *
    * By default, inserted rows are not returned. To return it, chain the call
@@ -114,46 +117,46 @@ export default class PostgrestQueryBuilder<Relation extends GenericTable | Gener
    * `"estimated"`: Uses exact count for low numbers and planned count for high
    * numbers.
    */
-  insert<Row extends Relation extends { Insert: unknown } ? Relation['Insert'] : never>(
-    values: Row | Row[],
-    {
-      count,
-    }: {
-      count?: 'exact' | 'planned' | 'estimated'
-    } = {}
-  ): PostgrestFilterBuilder<Relation['Row'], undefined> {
-    const method = 'POST'
+    insert<Row extends Relation extends { Insert: unknown } ? Relation['Insert'] : never>(
+        values: Row | Row[],
+        {
+            count,
+        }: {
+            count?: 'exact' | 'planned' | 'estimated'
+        } = {}
+    ): PostgrestFilterBuilder<Schema, Relation['Row'], undefined> {
+        const method = 'POST'
 
-    const prefersHeaders = []
-    const body = values
-    if (count) {
-      prefersHeaders.push(`count=${count}`)
+        const prefersHeaders = []
+        const body = values
+        if (count) {
+            prefersHeaders.push(`count=${count}`)
+        }
+        if (this.headers['Prefer']) {
+            prefersHeaders.unshift(this.headers['Prefer'])
+        }
+        this.headers['Prefer'] = prefersHeaders.join(',')
+
+        if (Array.isArray(values)) {
+            const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), [] as string[])
+            if (columns.length > 0) {
+                const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`)
+                this.url.searchParams.set('columns', uniqueColumns.join(','))
+            }
+        }
+
+        return new PostgrestFilterBuilder({
+            method,
+            url: this.url,
+            headers: this.headers,
+            schema: this.schema,
+            body,
+            fetch: this.fetch,
+            allowEmpty: false,
+        } as unknown as PostgrestBuilder<undefined>)
     }
-    if (this.headers['Prefer']) {
-      prefersHeaders.unshift(this.headers['Prefer'])
-    }
-    this.headers['Prefer'] = prefersHeaders.join(',')
 
-    if (Array.isArray(values)) {
-      const columns = values.reduce((acc, x) => acc.concat(Object.keys(x)), [] as string[])
-      if (columns.length > 0) {
-        const uniqueColumns = [...new Set(columns)].map((column) => `"${column}"`)
-        this.url.searchParams.set('columns', uniqueColumns.join(','))
-      }
-    }
-
-    return new PostgrestFilterBuilder({
-      method,
-      url: this.url,
-      headers: this.headers,
-      schema: this.schema,
-      body,
-      fetch: this.fetch,
-      allowEmpty: false,
-    } as unknown as PostgrestBuilder<undefined>)
-  }
-
-  /**
+    /**
    * Perform an UPSERT on the table or view. Depending on the column(s) passed
    * to `onConflict`, `.upsert()` allows you to perform the equivalent of
    * `.insert()` if a row with the corresponding `onConflict` columns doesn't
@@ -186,44 +189,44 @@ export default class PostgrestQueryBuilder<Relation extends GenericTable | Gener
    * `"estimated"`: Uses exact count for low numbers and planned count for high
    * numbers.
    */
-  upsert<Row extends Relation extends { Insert: unknown } ? Relation['Insert'] : never>(
-    values: Row | Row[],
-    {
-      onConflict,
-      ignoreDuplicates = false,
-      count,
-    }: {
-      onConflict?: string
-      ignoreDuplicates?: boolean
-      count?: 'exact' | 'planned' | 'estimated'
-    } = {}
-  ): PostgrestFilterBuilder<Relation['Row'], undefined> {
-    const method = 'POST'
+    upsert<Row extends Relation extends { Insert: unknown } ? Relation['Insert'] : never>(
+        values: Row | Row[],
+        {
+            onConflict,
+            ignoreDuplicates = false,
+            count,
+        }: {
+            onConflict?: string
+            ignoreDuplicates?: boolean
+            count?: 'exact' | 'planned' | 'estimated'
+        } = {}
+    ): PostgrestFilterBuilder<Schema, Relation['Row'], undefined> {
+        const method = 'POST'
 
-    const prefersHeaders = [`resolution=${ignoreDuplicates ? 'ignore' : 'merge'}-duplicates`]
+        const prefersHeaders = [`resolution=${ignoreDuplicates ? 'ignore' : 'merge'}-duplicates`]
 
-    if (onConflict !== undefined) this.url.searchParams.set('on_conflict', onConflict)
-    const body = values
-    if (count) {
-      prefersHeaders.push(`count=${count}`)
+        if (onConflict !== undefined) this.url.searchParams.set('on_conflict', onConflict)
+        const body = values
+        if (count) {
+            prefersHeaders.push(`count=${count}`)
+        }
+        if (this.headers['Prefer']) {
+            prefersHeaders.unshift(this.headers['Prefer'])
+        }
+        this.headers['Prefer'] = prefersHeaders.join(',')
+
+        return new PostgrestFilterBuilder({
+            method,
+            url: this.url,
+            headers: this.headers,
+            schema: this.schema,
+            body,
+            fetch: this.fetch,
+            allowEmpty: false,
+        } as unknown as PostgrestBuilder<undefined>)
     }
-    if (this.headers['Prefer']) {
-      prefersHeaders.unshift(this.headers['Prefer'])
-    }
-    this.headers['Prefer'] = prefersHeaders.join(',')
 
-    return new PostgrestFilterBuilder({
-      method,
-      url: this.url,
-      headers: this.headers,
-      schema: this.schema,
-      body,
-      fetch: this.fetch,
-      allowEmpty: false,
-    } as unknown as PostgrestBuilder<undefined>)
-  }
-
-  /**
+    /**
    * Perform an UPDATE on the table or view.
    *
    * By default, updated rows are not returned. To return it, chain the call
@@ -244,37 +247,37 @@ export default class PostgrestQueryBuilder<Relation extends GenericTable | Gener
    * `"estimated"`: Uses exact count for low numbers and planned count for high
    * numbers.
    */
-  update<Row extends Relation extends { Update: unknown } ? Relation['Update'] : never>(
-    values: Row,
-    {
-      count,
-    }: {
-      count?: 'exact' | 'planned' | 'estimated'
-    } = {}
-  ): PostgrestFilterBuilder<Relation['Row'], undefined> {
-    const method = 'PATCH'
-    const prefersHeaders = []
-    const body = values
-    if (count) {
-      prefersHeaders.push(`count=${count}`)
-    }
-    if (this.headers['Prefer']) {
-      prefersHeaders.unshift(this.headers['Prefer'])
-    }
-    this.headers['Prefer'] = prefersHeaders.join(',')
+    update<Row extends Relation extends { Update: unknown } ? Relation['Update'] : never>(
+        values: Row,
+        {
+            count,
+        }: {
+            count?: 'exact' | 'planned' | 'estimated'
+        } = {}
+    ): PostgrestFilterBuilder<Schema, Relation['Row'], undefined> {
+        const method = 'PATCH'
+        const prefersHeaders = []
+        const body = values
+        if (count) {
+            prefersHeaders.push(`count=${count}`)
+        }
+        if (this.headers['Prefer']) {
+            prefersHeaders.unshift(this.headers['Prefer'])
+        }
+        this.headers['Prefer'] = prefersHeaders.join(',')
 
-    return new PostgrestFilterBuilder({
-      method,
-      url: this.url,
-      headers: this.headers,
-      schema: this.schema,
-      body,
-      fetch: this.fetch,
-      allowEmpty: false,
-    } as unknown as PostgrestBuilder<undefined>)
-  }
+        return new PostgrestFilterBuilder({
+            method,
+            url: this.url,
+            headers: this.headers,
+            schema: this.schema,
+            body,
+            fetch: this.fetch,
+            allowEmpty: false,
+        } as unknown as PostgrestBuilder<undefined>)
+    }
 
-  /**
+    /**
    * Perform a DELETE on the table or view.
    *
    * By default, deleted rows are not returned. To return it, chain the call
@@ -293,28 +296,28 @@ export default class PostgrestQueryBuilder<Relation extends GenericTable | Gener
    * `"estimated"`: Uses exact count for low numbers and planned count for high
    * numbers.
    */
-  delete({
-    count,
-  }: {
-    count?: 'exact' | 'planned' | 'estimated'
-  } = {}): PostgrestFilterBuilder<Relation['Row'], undefined> {
-    const method = 'DELETE'
-    const prefersHeaders = []
-    if (count) {
-      prefersHeaders.push(`count=${count}`)
-    }
-    if (this.headers['Prefer']) {
-      prefersHeaders.unshift(this.headers['Prefer'])
-    }
-    this.headers['Prefer'] = prefersHeaders.join(',')
+    delete({
+        count,
+    }: {
+            count?: 'exact' | 'planned' | 'estimated'
+        } = {}): PostgrestFilterBuilder<Schema, Relation['Row'], undefined> {
+        const method = 'DELETE'
+        const prefersHeaders = []
+        if (count) {
+            prefersHeaders.push(`count=${count}`)
+        }
+        if (this.headers['Prefer']) {
+            prefersHeaders.unshift(this.headers['Prefer'])
+        }
+        this.headers['Prefer'] = prefersHeaders.join(',')
 
-    return new PostgrestFilterBuilder({
-      method,
-      url: this.url,
-      headers: this.headers,
-      schema: this.schema,
-      fetch: this.fetch,
-      allowEmpty: false,
-    } as unknown as PostgrestBuilder<undefined>)
-  }
+        return new PostgrestFilterBuilder({
+            method,
+            url: this.url,
+            headers: this.headers,
+            schema: this.schema,
+            fetch: this.fetch,
+            allowEmpty: false,
+        } as unknown as PostgrestBuilder<undefined>)
+    }
 }

@@ -1,12 +1,18 @@
 import PostgrestBuilder from './PostgrestBuilder'
 import { GetResult } from './select-query-parser'
-import { PostgrestMaybeSingleResponse, PostgrestResponse, PostgrestSingleResponse } from './types'
+import {
+    GenericSchema,
+    PostgrestMaybeSingleResponse,
+    PostgrestResponse,
+    PostgrestSingleResponse,
+} from './types'
 
 export default class PostgrestTransformBuilder<
-  Row extends Record<string, unknown>,
-  Result
+Schema extends GenericSchema,
+Row extends Record<string, unknown>,
+Result
 > extends PostgrestBuilder<Result> {
-  /**
+    /**
    * Perform a SELECT on the query result.
    *
    * By default, `.insert()`, `.update()`, `.upsert()`, and `.delete()` do not
@@ -15,32 +21,32 @@ export default class PostgrestTransformBuilder<
    *
    * @param columns - The columns to retrieve, separated by commas
    */
-  select<Query extends string = '*', NewResult = GetResult<Row, Query extends '*' ? '*' : Query>>(
-    columns?: Query
-  ): PostgrestTransformBuilder<Row, NewResult> {
-    // Remove whitespaces except when quoted
-    let quoted = false
-    const cleanedColumns = (columns ?? '*')
-      .split('')
-      .map((c) => {
-        if (/\s/.test(c) && !quoted) {
-          return ''
+    select<Query extends string = '*', NewResult = GetResult<Schema, Row, Query>>(
+        columns?: Query
+    ): PostgrestTransformBuilder<Schema, Row, NewResult> {
+        // Remove whitespaces except when quoted
+        let quoted = false
+        const cleanedColumns = (columns ?? '*')
+        .split('')
+        .map((c) => {
+            if (/\s/.test(c) && !quoted) {
+                return ''
+            }
+            if (c === '"') {
+                quoted = !quoted
+            }
+            return c
+        })
+        .join('')
+        this.url.searchParams.set('select', cleanedColumns)
+        if (this.headers['Prefer']) {
+            this.headers['Prefer'] += ','
         }
-        if (c === '"') {
-          quoted = !quoted
-        }
-        return c
-      })
-      .join('')
-    this.url.searchParams.set('select', cleanedColumns)
-    if (this.headers['Prefer']) {
-      this.headers['Prefer'] += ','
+        this.headers['Prefer'] += 'return=representation'
+        return this as unknown as PostgrestTransformBuilder<Schema, Row, NewResult>
     }
-    this.headers['Prefer'] += 'return=representation'
-    return this as unknown as PostgrestTransformBuilder<Row, NewResult>
-  }
 
-  /**
+    /**
    * Order the query result by `column`.
    *
    * You can call this method multiple times to order by multiple columns.
@@ -56,35 +62,35 @@ export default class PostgrestTransformBuilder<
    * @param options.foreignTable - Set this to order a foreign table by foreign
    * columns
    */
-  order<ColumnName extends string & keyof Row>(
-    column: ColumnName,
-    options?: { ascending?: boolean; nullsFirst?: boolean; foreignTable?: undefined }
-  ): this
-  order(
-    column: string,
-    options?: { ascending?: boolean; nullsFirst?: boolean; foreignTable: string }
-  ): this
-  order(
-    column: string,
-    {
-      ascending = true,
-      nullsFirst,
-      foreignTable,
-    }: { ascending?: boolean; nullsFirst?: boolean; foreignTable?: string } = {}
-  ): this {
-    const key = foreignTable ? `${foreignTable}.order` : 'order'
-    const existingOrder = this.url.searchParams.get(key)
+    order<ColumnName extends string & keyof Row>(
+        column: ColumnName,
+        options?: { ascending?: boolean; nullsFirst?: boolean; foreignTable?: undefined }
+    ): this
+    order(
+        column: string,
+        options?: { ascending?: boolean; nullsFirst?: boolean; foreignTable: string }
+    ): this
+    order(
+        column: string,
+        {
+            ascending = true,
+            nullsFirst,
+            foreignTable,
+        }: { ascending?: boolean; nullsFirst?: boolean; foreignTable?: string } = {}
+    ): this {
+        const key = foreignTable ? `${foreignTable}.order` : 'order'
+        const existingOrder = this.url.searchParams.get(key)
 
-    this.url.searchParams.set(
-      key,
-      `${existingOrder ? `${existingOrder},` : ''}${column}.${ascending ? 'asc' : 'desc'}${
-        nullsFirst === undefined ? '' : nullsFirst ? '.nullsfirst' : '.nullslast'
-      }`
-    )
-    return this
-  }
+        this.url.searchParams.set(
+            key,
+            `${existingOrder ? `${existingOrder},` : ''}${column}.${ascending ? 'asc' : 'desc'}${
+nullsFirst === undefined ? '' : nullsFirst ? '.nullsfirst' : '.nullslast'
+}`
+        )
+        return this
+    }
 
-  /**
+    /**
    * Limit the query result by `count`.
    *
    * @param count - The maximum number of rows to return
@@ -92,13 +98,13 @@ export default class PostgrestTransformBuilder<
    * @param options.foreignTable - Set this to limit rows of foreign tables
    * instead of the current table
    */
-  limit(count: number, { foreignTable }: { foreignTable?: string } = {}): this {
-    const key = typeof foreignTable === 'undefined' ? 'limit' : `${foreignTable}.limit`
-    this.url.searchParams.set(key, `${count}`)
-    return this
-  }
+    limit(count: number, { foreignTable }: { foreignTable?: string } = {}): this {
+        const key = typeof foreignTable === 'undefined' ? 'limit' : `${foreignTable}.limit`
+        this.url.searchParams.set(key, `${count}`)
+        return this
+    }
 
-  /**
+    /**
    * Limit the query result by `from` and `to` inclusively.
    *
    * @param from - The starting index from which to limit the result
@@ -107,65 +113,65 @@ export default class PostgrestTransformBuilder<
    * @param options.foreignTable - Set this to limit rows of foreign tables
    * instead of the current table
    */
-  range(from: number, to: number, { foreignTable }: { foreignTable?: string } = {}): this {
-    const keyOffset = typeof foreignTable === 'undefined' ? 'offset' : `${foreignTable}.offset`
-    const keyLimit = typeof foreignTable === 'undefined' ? 'limit' : `${foreignTable}.limit`
-    this.url.searchParams.set(keyOffset, `${from}`)
-    // Range is inclusive, so add 1
-    this.url.searchParams.set(keyLimit, `${to - from + 1}`)
-    return this
-  }
+    range(from: number, to: number, { foreignTable }: { foreignTable?: string } = {}): this {
+        const keyOffset = typeof foreignTable === 'undefined' ? 'offset' : `${foreignTable}.offset`
+        const keyLimit = typeof foreignTable === 'undefined' ? 'limit' : `${foreignTable}.limit`
+        this.url.searchParams.set(keyOffset, `${from}`)
+        // Range is inclusive, so add 1
+        this.url.searchParams.set(keyLimit, `${to - from + 1}`)
+        return this
+    }
 
-  /**
+    /**
    * Set the AbortSignal for the fetch request.
    *
    * @param signal - The AbortSignal to use for the fetch request
    */
-  abortSignal(signal: AbortSignal): this {
-    this.signal = signal
-    return this
-  }
+    abortSignal(signal: AbortSignal): this {
+        this.signal = signal
+        return this
+    }
 
-  /**
+    /**
    * Return `data` as a single object instead of an array of objects.
    *
    * Query result must be one row (e.g. using `.limit(1)`), otherwise this
    * returns an error.
    */
-  single(): PromiseLike<PostgrestSingleResponse<Result>> {
-    this.headers['Accept'] = 'application/vnd.pgrst.object+json'
-    return this as PromiseLike<PostgrestSingleResponse<Result>>
-  }
+    single(): PromiseLike<PostgrestSingleResponse<Result>> {
+        this.headers['Accept'] = 'application/vnd.pgrst.object+json'
+        return this as PromiseLike<PostgrestSingleResponse<Result>>
+    }
 
-  /**
+    /**
    * Return `data` as a single object instead of an array of objects.
    *
    * Query result must be zero or one row (e.g. using `.limit(1)`), otherwise
    * this returns an error.
    */
-  maybeSingle(): PromiseLike<PostgrestMaybeSingleResponse<Result>> {
-    this.headers['Accept'] = 'application/vnd.pgrst.object+json'
-    this.allowEmpty = true
-    return this as PromiseLike<PostgrestMaybeSingleResponse<Result>>
-  }
+    maybeSingle(): PromiseLike<PostgrestMaybeSingleResponse<Result>> {
+        this.headers['Accept'] = 'application/vnd.pgrst.object+json'
+        this.allowEmpty = true
+        return this as PromiseLike<PostgrestMaybeSingleResponse<Result>>
+    }
 
-  /**
+    /**
    * Return `data` as a string in CSV format.
    */
-  csv(): PromiseLike<PostgrestSingleResponse<string>> {
-    this.headers['Accept'] = 'text/csv'
-    return this as PromiseLike<PostgrestSingleResponse<string>>
-  }
+    csv(): PromiseLike<PostgrestSingleResponse<string>> {
+        this.headers['Accept'] = 'text/csv'
+        return this as PromiseLike<PostgrestSingleResponse<string>>
+    }
 
-  /**
+    /**
    * Return `data` as an object in [GeoJSON](https://geojson.org) format.
    */
-  geojson(): PromiseLike<PostgrestSingleResponse<Record<string, unknown>>> {
-    this.headers['Accept'] = 'application/geo+json'
-    return this as PromiseLike<PostgrestSingleResponse<Record<string, unknown>>>
-  }
+    geojson(): PromiseLike<PostgrestSingleResponse<Record<string, unknown>>> {
+        this.headers['Accept'] = 'application/geo+json'
+        return this as PromiseLike<PostgrestSingleResponse<Record<string, unknown>>>
+    }
 
-  /**
+    /**
    * Return `data` as the EXPLAIN plan for the query.
    *
    * @param options - Named parameters
@@ -186,52 +192,61 @@ export default class PostgrestTransformBuilder<
    * @param options.format - The format of the output, can be `"text"` (default)
    * or `"json"`
    */
-  explain({
-    analyze = false,
-    verbose = false,
-    settings = false,
-    buffers = false,
-    wal = false,
-    format = 'text',
-  }: {
-    analyze?: boolean
-    verbose?: boolean
-    settings?: boolean
-    buffers?: boolean
-    wal?: boolean
-    format?: 'json' | 'text'
-  } = {}):
+    explain({
+        analyze = false,
+        verbose = false,
+        settings = false,
+        buffers = false,
+        wal = false,
+        format = 'text',
+    }: {
+            analyze?: boolean
+            verbose?: boolean
+            settings?: boolean
+            buffers?: boolean
+            wal?: boolean
+            format?: 'json' | 'text'
+        } = {}):
     | PromiseLike<PostgrestResponse<Record<string, unknown>>>
     | PromiseLike<PostgrestSingleResponse<string>> {
-    const options = [
-      analyze ? 'analyze' : null,
-      verbose ? 'verbose' : null,
-      settings ? 'settings' : null,
-      buffers ? 'buffers' : null,
-      wal ? 'wal' : null,
-    ]
-      .filter(Boolean)
-      .join('|')
-    // An Accept header can carry multiple media types but postgrest-js always sends one
-    const forMediatype = this.headers['Accept']
-    this.headers[
-      'Accept'
-    ] = `application/vnd.pgrst.plan+${format}; for="${forMediatype}"; options=${options};`
-    if (format === 'json') return this as PromiseLike<PostgrestResponse<Record<string, unknown>>>
-    else return this as PromiseLike<PostgrestSingleResponse<string>>
-  }
+        const options = [
+            analyze ? 'analyze' : null,
+            verbose ? 'verbose' : null,
+            settings ? 'settings' : null,
+            buffers ? 'buffers' : null,
+            wal ? 'wal' : null,
+        ]
+        .filter(Boolean)
+        .join('|')
+        // An Accept header can carry multiple media types but postgrest-js always sends one
+        const forMediatype = this.headers['Accept']
+        this.headers[
+            'Accept'
+        ] = `application/vnd.pgrst.plan+${format}; for="${forMediatype}"; options=${options};`
+        if (format === 'json') return this as PromiseLike<PostgrestResponse<Record<string, unknown>>>
+            else return this as PromiseLike<PostgrestSingleResponse<string>>
+    }
 
-  /**
+    /**
    * Rollback the query.
    *
    * `data` will still be returned, but the query is not committed.
    */
-  rollback(): this {
-    if ((this.headers['Prefer'] ?? '').trim().length > 0) {
-      this.headers['Prefer'] += ',tx=rollback'
-    } else {
-      this.headers['Prefer'] = 'tx=rollback'
+    rollback(): this {
+        if ((this.headers['Prefer'] ?? '').trim().length > 0) {
+            this.headers['Prefer'] += ',tx=rollback'
+        } else {
+            this.headers['Prefer'] = 'tx=rollback'
+        }
+        return this
     }
-    return this
-  }
+
+    /**
+   * Override the type of the returned `data`.
+   *
+   * @typeParam NewResult - The new result type to override with
+   */
+    returns<NewResult>(): PostgrestTransformBuilder<Schema, Row, NewResult> {
+        return this as unknown as PostgrestTransformBuilder<Schema, Row, NewResult>
+    }
 }

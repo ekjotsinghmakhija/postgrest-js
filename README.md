@@ -3,7 +3,7 @@
 
 Isomorphic JavaScript client for [PostgREST](https://postgrest.org). The goal of this library is to make an "ORM-like" restful interface.
 
-Full documentation can be found [here](https://deezbase.github.io/postgrest-js/).
+Full documentation can be found [here](https://deezbase.github.io/postgrest-js/v2).
 
 ### Quick start
 
