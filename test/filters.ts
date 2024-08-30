@@ -30,14 +30,14 @@ test('or', async () => {
     const res = await postgrest
         .from('users')
         .select('status, username')
-        .or('status.eq.OFFLINE,username.eq.supabot')
+        .or('status.eq.OFFLINE,username.eq.deezbot')
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
 "data": Array [
 Object {
 "status": "ONLINE",
-"username": "supabot",
+"username": "deezbot",
 },
 Object {
 "status": "OFFLINE",
@@ -52,13 +52,13 @@ Object {
 })
 
 test('eq', async () => {
-    const res = await postgrest.from('users').select('username').eq('username', 'supabot')
+    const res = await postgrest.from('users').select('username').eq('username', 'deezbot')
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
 "data": Array [
 Object {
-"username": "supabot",
+"username": "deezbot",
 },
 ],
 "error": null,
@@ -69,7 +69,7 @@ Object {
 })
 
 test('neq', async () => {
-    const res = await postgrest.from('users').select('username').neq('username', 'supabot')
+    const res = await postgrest.from('users').select('username').neq('username', 'deezbot')
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
@@ -166,13 +166,56 @@ Object {
 })
 
 test('like', async () => {
-    const res = await postgrest.from('users').select('username').like('username', '%supa%')
+    const res = await postgrest.from('users').select('username').like('username', '%deez%')
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
 "data": Array [
 Object {
-"username": "supabot",
+"username": "deezbot",
+},
+],
+"error": null,
+"status": 200,
+"statusText": "OK",
+}
+`)
+})
+
+test('likeAllOf', async () => {
+    const res = await postgrest
+        .from('users')
+        .select('username')
+        .likeAllOf('username', ['%deez%', '%bot%'])
+    expect(res).toMatchInlineSnapshot(`
+Object {
+"count": null,
+"data": Array [
+Object {
+"username": "deezbot",
+},
+],
+"error": null,
+"status": 200,
+"statusText": "OK",
+}
+`)
+})
+
+test('likeAnyOf', async () => {
+    const res = await postgrest
+        .from('users')
+        .select('username')
+        .likeAnyOf('username', ['%deez%', '%kiwi%'])
+    expect(res).toMatchInlineSnapshot(`
+Object {
+"count": null,
+"data": Array [
+Object {
+"username": "deezbot",
+},
+Object {
+"username": "kiwicopple",
 },
 ],
 "error": null,
@@ -189,7 +232,50 @@ Object {
 "count": null,
 "data": Array [
 Object {
-"username": "supabot",
+"username": "deezbot",
+},
+],
+"error": null,
+"status": 200,
+"statusText": "OK",
+}
+`)
+})
+
+test('ilikeAllOf', async () => {
+    const res = await postgrest
+        .from('users')
+        .select('username')
+        .ilikeAllOf('username', ['%SUPA%', '%bot%'])
+    expect(res).toMatchInlineSnapshot(`
+Object {
+"count": null,
+"data": Array [
+Object {
+"username": "deezbot",
+},
+],
+"error": null,
+"status": 200,
+"statusText": "OK",
+}
+`)
+})
+
+test('ilikeAnyOf', async () => {
+    const res = await postgrest
+        .from('users')
+        .select('username')
+        .ilikeAnyOf('username', ['%deez%', '%KIWI%'])
+    expect(res).toMatchInlineSnapshot(`
+Object {
+"count": null,
+"data": Array [
+Object {
+"username": "deezbot",
+},
+Object {
+"username": "kiwicopple",
 },
 ],
 "error": null,
@@ -226,7 +312,8 @@ Object {
 })
 
 test('in', async () => {
-    const res = await postgrest.from('users').select('status').in('status', ['ONLINE', 'OFFLINE'])
+    const statuses = ['ONLINE', 'OFFLINE'] as const
+    const res = await postgrest.from('users').select('status').in('status', statuses)
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
@@ -489,7 +576,7 @@ test('multiple filters', async () => {
     const res = await postgrest
         .from('users')
         .select()
-        .eq('username', 'supabot')
+        .eq('username', 'deezbot')
         .is('data', null)
         .overlaps('age_range', '[1,2)')
         .eq('status', 'ONLINE')
@@ -503,7 +590,7 @@ Object {
 "catchphrase": "'cat' 'fat'",
 "data": null,
 "status": "ONLINE",
-"username": "supabot",
+"username": "deezbot",
 },
 ],
 "error": null,
@@ -514,13 +601,13 @@ Object {
 })
 
 test('filter', async () => {
-    const res = await postgrest.from('users').select('username').filter('username', 'eq', 'supabot')
+    const res = await postgrest.from('users').select('username').filter('username', 'eq', 'deezbot')
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
 "data": Array [
 Object {
-"username": "supabot",
+"username": "deezbot",
 },
 ],
 "error": null,
@@ -534,14 +621,14 @@ test('match', async () => {
     const res = await postgrest
         .from('users')
         .select('username, status')
-        .match({ username: 'supabot', status: 'ONLINE' })
+        .match({ username: 'deezbot', status: 'ONLINE' })
     expect(res).toMatchInlineSnapshot(`
 Object {
 "count": null,
 "data": Array [
 Object {
 "status": "ONLINE",
-"username": "supabot",
+"username": "deezbot",
 },
 ],
 "error": null,
@@ -553,7 +640,7 @@ Object {
 
 test('filter on rpc', async () => {
     const res = await postgrest
-        .rpc('get_username_and_status', { name_param: 'supabot' })
+        .rpc('get_username_and_status', { name_param: 'deezbot' })
         .neq('status', 'ONLINE')
     expect(res).toMatchInlineSnapshot(`
 Object {

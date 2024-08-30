@@ -29,4 +29,4 @@ VALUES
 
 INSERT INTO shops(id, address, shop_geom)
 VALUES
-    (1, '1369 Cambridge St', 'SRID=4326;POINT(-71.10044 42.373695)');
+  (1, '1369 Cambridge St', 'SRID=4326;POINT(-71.10044 42.373695)');

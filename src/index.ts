@@ -1,11 +1,29 @@
-export { default as PostgrestClient } from './PostgrestClient'
-export { default as PostgrestQueryBuilder } from './PostgrestQueryBuilder'
-export { default as PostgrestFilterBuilder } from './PostgrestFilterBuilder'
-export { default as PostgrestTransformBuilder } from './PostgrestTransformBuilder'
-export { default as PostgrestBuilder } from './PostgrestBuilder'
+// Always update wrapper.mjs when updating this file.
+import PostgrestClient from './PostgrestClient'
+import PostgrestQueryBuilder from './PostgrestQueryBuilder'
+import PostgrestFilterBuilder from './PostgrestFilterBuilder'
+import PostgrestTransformBuilder from './PostgrestTransformBuilder'
+import PostgrestBuilder from './PostgrestBuilder'
+
 export {
-  PostgrestResponse,
-  PostgrestSingleResponse,
-  PostgrestMaybeSingleResponse,
-  PostgrestError,
+    PostgrestClient,
+    PostgrestQueryBuilder,
+    PostgrestFilterBuilder,
+    PostgrestTransformBuilder,
+    PostgrestBuilder,
+}
+export default {
+    PostgrestClient,
+    PostgrestQueryBuilder,
+    PostgrestFilterBuilder,
+    PostgrestTransformBuilder,
+    PostgrestBuilder,
+}
+export type {
+    PostgrestResponse,
+    PostgrestResponseFailure,
+    PostgrestResponseSuccess,
+    PostgrestSingleResponse,
+    PostgrestMaybeSingleResponse,
+    PostgrestError,
 } from './types'
